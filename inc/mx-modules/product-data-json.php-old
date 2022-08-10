@@ -1,0 +1,135 @@
+<?php
+
+/////запись данных о товарах и категориях в json файл, оттуда приложение загружает данные, чтоб быстрее работало
+
+function get_cat_list(){
+	
+	//remove_action('wp_footer', 'get_cat_list'); //чтоб не зациклилось
+	
+	$url_domain = 'https://'.$_SERVER['SERVER_NAME'];
+	$url_api = '/wp-json/wc/v2/products/categories?exclude=311&per_page=100&page=1&hide_empty=true&lang=ru&consumer_key=ck_8e9043f849e95e6d003c3cc2474fc22b2ed01eec&consumer_secret=cs_74c746f821c405606c0950997a33b194ffc06876';
+	$ch = curl_init($url_domain.$url_api);
+	//$ch = curl_init("https://demo.xn--90agcwb4c1dc.xn--p1ai/wp-json/wc/v2/products/categories?exclude=311&per_page=100&page=1&hide_empty=true&lang=ru&consumer_key=ck_8e9043f849e95e6d003c3cc2474fc22b2ed01eec&consumer_secret=cs_74c746f821c405606c0950997a33b194ffc06876");
+	
+	curl_setopt($ch, CURLOPT_HTTPHEADER, array( 'Content-Type: application/json'));
+	curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "GET");
+	curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+	//curl_setopt($ch, CURLOPT_POSTFIELDS, $fields );
+	
+	$result = curl_exec ( $ch ); //debug_to_file($result);
+	
+	//if(curl_error($ch)) { debug_to_file(curl_error($ch)); }
+	curl_close($ch);
+	
+	$arr = json_decode($result); //debug_to_file($arr);
+	$json = json_encode($arr); //debug_to_file($json);
+	
+	$new_arr = array();
+	
+	foreach($arr as $k){
+		//debug_to_file($k);
+		$temp_cat = (array)$k;
+		$prod_list = json_decode(get_prod_list($k->id));
+		$temp_cat['products'] = $prod_list;
+		array_push($new_arr, $temp_cat);
+		//break;
+	} 
+	$new_json = json_encode($new_arr, JSON_UNESCAPED_UNICODE);
+	//debug_to_file($new_json);
+	//debug_to_file($new_arr);
+	//$prod_list = get_prod_list(124);
+	//debug_to_file($prod_list);
+	
+	prodcat_to_file($new_json);
+}
+
+
+
+function get_prod_list($cat_id){
+	
+	$url_domain = 'https://'.$_SERVER['SERVER_NAME']; //debug_to_file($url_domain);
+	$url_api = '/wp-json/wc/v2/products?status=publish&category='.$cat_id.'&per_page=100&orderby=menu_order&order=asc&stock_status=instock&consumer_key=ck_8e9043f849e95e6d003c3cc2474fc22b2ed01eec&consumer_secret=cs_74c746f821c405606c0950997a33b194ffc06876';
+	
+	
+	$prod = curl_init($url_domain.$url_api);
+	
+	curl_setopt($prod, CURLOPT_HTTPHEADER, array( 'Content-Type: application/json'));
+	curl_setopt($prod, CURLOPT_CUSTOMREQUEST, "GET");
+	curl_setopt($prod, CURLOPT_RETURNTRANSFER, 1);
+	//curl_setopt($ch, CURLOPT_POSTFIELDS, $fields );
+	
+	$result_prod = curl_exec ( $prod ); //debug_to_file($result);
+	
+	//if(curl_error($ch)) { debug_to_file(curl_error($ch)); }
+	curl_close($prod);
+	
+	add_action('wp_footer', 'get_cat_list'); //возвращаем удалённый hook
+	
+	$arr_prod = json_decode($result_prod); //debug_to_file($arr);
+	
+	
+	return $result_prod;
+}
+
+
+function prodcat_to_file($cont){
+	//$path = $_SERVER['DOCUMENT_ROOT']. '/wp-content/themes/pizzaro/inc/mx-modules/files/prcat.json';
+	$ctime = time();
+	$path_new = $_SERVER['DOCUMENT_ROOT']. '/wp-content/uploads/app_sync/prodcat.json';
+	$path = $_SERVER['DOCUMENT_ROOT']. '/wp-content/uploads/2021/04/dataset_1.json';
+	$path_tmp = $_SERVER['DOCUMENT_ROOT']. '/wp-content/uploads/app_sync/tmp/prodcat_'.$ctime.'.json';
+	$file_tmp = fopen($path_tmp, 'w');
+	fwrite($file_tmp, $cont);
+	fclose($file_tmp);
+	
+	if(file_exists($path_tmp)) {
+		$cont_tmp = file_get_contents($path_tmp);
+		$json = json_decode($cont_tmp, true);
+		
+		$file = fopen($path, 'w');
+		fwrite($file, $cont_tmp);
+		fclose($file);
+		
+		//return $json;
+	}
+	
+	if(file_exists($path_tmp)) {
+		$cont_tmp = file_get_contents($path_tmp);
+		$json = json_decode($cont_tmp, true);
+		
+		$file = fopen($path_new, 'w');
+		fwrite($file, $cont_tmp);
+		fclose($file);
+		
+		//return $json;
+	}
+	
+	unlink($path_tmp); //удаление временного файла
+	
+}
+
+add_action( 'rest_api_init', function () {
+	register_rest_route( 'systeminfo/v1', '/productdata', array( //регистрация маршрута
+		'methods'             => 'GET',
+		'callback'            => 'get_product_json'
+	));
+});
+
+function get_product_json(WP_REST_Request $request ){
+	//$path = $_SERVER['DOCUMENT_ROOT']. '/wp-content/themes/pizzaro/inc/mx-modules/files/prcat.json';
+	//$path = $_SERVER['DOCUMENT_ROOT']. '/wp-content/uploads/app_sync/prodcat.json';
+	$path = $_SERVER['DOCUMENT_ROOT']. '/wp-content/uploads/2021/04/dataset_1.json';
+	
+	get_cat_list();
+	
+	if(file_exists($path)) {
+		$file = file_get_contents($path);
+		$json = json_decode($file, true);
+		return $json;
+	}
+	
+	return 0;
+}
+
+add_action('save_post_product', 'get_cat_list');
+add_action('saved_product_cat', 'get_cat_list');
