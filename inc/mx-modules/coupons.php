@@ -115,7 +115,7 @@ function get_user_avaible_coupons($user_id) {
 				'title' => $coupon->post_excerpt,
 				'code' => $coupon->post_title,
 				'individual' => $is_individual,
-				'avaible_to' => $avaible_to,
+				'avaible_to' => $avaible_to ? : '2023-12-12 12:00:00',
 			];
 
 		}

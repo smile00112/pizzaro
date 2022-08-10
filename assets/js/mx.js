@@ -204,7 +204,10 @@ $(document).ready(function () {
 
 
 	$('#auth-phone').mask("(999) 999-99-99"); //<div id="login-button"></div>
-
+	$('#auth-sms').on('submit', function (e) {
+		e.preventDefault();
+		$('#auth-sms .send-sms').click();
+	})
 	//запрос пользователя на получение смс кода для авторизации
 	$('#auth-sms .send-sms').on('click', function () {
 		//console.log('click send');
